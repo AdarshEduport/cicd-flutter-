@@ -1,73 +1,62 @@
-# 1.
 name: Test & Build
 
-# 2.
 on:
   pull_request:
     branches:
-      - main
-      - dev
-  push:
-    branches:
-      - main
-      - dev
+      - "**"
 
-# 3.
 jobs:
   main:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     steps:
+      - name: Check PR title for 'build-apk'
+        id: titlecheck
+        run: |
+          title="${{ github.event.pull_request.title }}"
+          title_lower=$(echo "$title" | tr '[:upper:]' '[:lower:]')
+          if [[ "$title_lower" == *"build-apk"* ]]; then
+            echo "run_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "run_build=false" >> $GITHUB_OUTPUT
+          fi
 
-      # 5.
-      - name: Clone repository
+      - name: Skip build if keyword missing
+        if: steps.titlecheck.outputs.run_build == 'false'
+        run: |
+          echo "⚠️ PR title does not contain 'build-apk'. Build skipped."
+          exit 0
+
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 6.
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: "18"
 
-      # 7.
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           flutter-version: '3.32.8'
+          cache: true
 
-      # 8.
       - name: Get Flutter packages
         run: flutter pub get
 
-      # 9.
-      - name: Check for lints
+      - name: Analyze code
         run: flutter analyze
 
-      # 10.
-      - name: Run all tests
+      - name: Run tests
         run: flutter test
 
-      # 11.
       - name: Build APK
-        run: flutter build apk
+        run: flutter build apk --release
 
-      # 12.
-      - name: Build iOS IPA
-        run: flutter build ipa --no-codesign
-
-      # 13.
-      - name: Compress Archives and IPAs
-        run: |
-          cd build
-          tar -czf ios_build.tar.gz ios
-
-      # 14.
-      - name: Upload Artifacts
+      - name: Upload Android Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Releases
-          path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/ios_build.tar.gz
+          name: android-release
+          path: build/app/outputs/flutter-apk/app-release.apk
