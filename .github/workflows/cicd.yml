@@ -1,13 +1,32 @@
+name: Test & Build
+
+on:
+  pull_request:
+    branches:
+      - "**"
+
 jobs:
   main:
     runs-on: ubuntu-latest
 
-    # Run only when PR title contains "build-apk" (case-insensitive)
-    if: |
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.title =~ '.*(?i)build-apk.*'
-
     steps:
+      - name: Check PR title for 'build-apk'
+        id: titlecheck
+        run: |
+          title="${{ github.event.pull_request.title }}"
+          title_lower=$(echo "$title" | tr '[:upper:]' '[:lower:]')
+          if [[ "$title_lower" == *"build-apk"* ]]; then
+            echo "run_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "run_build=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip build if keyword missing
+        if: steps.titlecheck.outputs.run_build == 'false'
+        run: |
+          echo "⚠️ PR title does not contain 'build-apk'. Build skipped."
+          exit 0
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
