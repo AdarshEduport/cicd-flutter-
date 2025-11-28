@@ -3,16 +3,19 @@ name: Test & Build
 on:
   pull_request:
     branches:
-      - main
-      - dev
+      - "**"
   push:
     branches:
-      - main
-      - dev
+      - "**"     # optional → remove if you want PR-only builds
 
 jobs:
   main:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+
+    # Run only when PR title contains "build-apk"
+    if: |
+      github.event_name == 'pull_request' &&
+      contains(tolower(github.event.pull_request.title), 'build-apk')
 
     steps:
       - name: Clone repository
@@ -34,17 +37,24 @@ jobs:
       - name: Get Flutter packages
         run: flutter pub get
 
-      - name: Check for lints
+      - name: Analyze code
         run: flutter analyze
 
-      - name: Run all tests
+      - name: Run tests
         run: flutter test
 
       - name: Build APK
         run: flutter build apk
 
-      - name: Upload Android Release APK
+      - name: Rename APK
+        run: |
+          BRANCH="${GITHUB_REF##*/}"
+          COMMIT="${GITHUB_SHA::7}"
+          mv build/app/outputs/flutter-apk/app-release.apk \
+            build/app/outputs/flutter-apk/app-${BRANCH}-${COMMIT}.apk
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: app-${{ github.ref_name }}-${{ github.sha }}
+          path: build/app/outputs/flutter-apk/app-${{ github.ref_name }}-${{ github.sha::7 }}.apk
